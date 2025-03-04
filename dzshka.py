@@ -17,11 +17,10 @@ class Birthday(Field):
     def __init__(self, value):
         if not isinstance(value, str):
             raise ValueError("Date must be a string in the format DD.MM.YYYY")
-        try:
-            self.value = datetime.strptime(value, "%d.%m.%Y")
+        try: datetime.strptime(value, "%d.%m.%Y")            
         except ValueError:
             raise ValueError("Invalid date format. Use DD.MM.YYYY")
-
+        self.value = value 
  
 class Phone(Field):
     def __init__(self, value):
@@ -64,7 +63,12 @@ class Record:
         return None
 
     def __str__(self):
-        return f"Contact name: {self.name.value}, phones: {'; '.join(p.value for p in self.phones)}"
+        details = [f"Contact name: {self.name.value}"]
+        if self.phones:
+            details.append(f"Phones: {', '.join(p.value for p in self.phones)}")
+        if self.birthday:
+            details.append(f"Birthday: {self.birthday.value}")
+        return "; ".join(details)
 
 class AddressBook(UserDict):
     def add_record(self, record):
@@ -73,14 +77,15 @@ class AddressBook(UserDict):
 
     def get_upcoming_birthdays(self, days=7):
         upcoming_birthdays = []
-        today = datetime.today()
+        today = datetime.today().date()
 
         for record in self.data.values():
             if not record.birthday:
                 continue
 
-            today = datetime.today().date()
-            birthday_this_year = record.birthday.value.date().replace(year=today.year)
+            birthday_date = datetime.strptime(record.birthday.value, "%d.%m.%Y").date()
+            birthday_this_year = birthday_date.replace(year=today.year)
+
 
             if birthday_this_year < today:
                 birthday_this_year = record.birthday.value.replace(year=today.year + 1)
@@ -116,12 +121,18 @@ class AddressBook(UserDict):
 #############<<<<<<<<<
 
 def input_error(func):
-    def wrapper(*args, **kwargs):
+    def inner(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except (KeyError, ValueError, IndexError) as e:
-            return f"Ошибка: {str(e)}"
-    return wrapper
+        except ValueError:
+            return "Give me name and phone please."
+        except KeyError:
+            return "Не вірний формат вводу."
+        except IndexError:
+            return "Контакт не знайдено."
+
+    return inner
+
 
 ############>>>>>>>>>>>
     
@@ -155,8 +166,15 @@ def show_phone(args, book):
         return f"{name}: {', '.join(p.value for p in record.phones)}"
     return "Contact not found."
 
+@input_error
 def show_all(book):
-    return str(book) if book.data else "Address book is empty."
+    if not book.data:
+        return "Address book is empty."
+    result = []
+    for name, record in book.data.items():
+        result.append(str(record))
+
+    return "\n".join(result)
 
 @input_error
 def add_birthday(args, book):
@@ -172,8 +190,9 @@ def show_birthday(args, book):
     name = args[0]
     record = book.find(name)
     if record and record.birthday:
-        return f"{name}'s birthday: {record.birthday.value.strftime('%d.%m.%Y')}"
+        return f"{name}'s birthday: {record.birthday.value}"
     return "Birthday not found for this contact."
+
 
 @input_error
 def upcoming_birthdays(args, book):
@@ -219,7 +238,7 @@ def main():
         elif command == "show-birthday":
             print(show_birthday(args, book))
         elif command == "birthdays":
-            print(upcoming_birthdays(book))
+            print(upcoming_birthdays(args if args else ["7"], book))
         else:
             print("Invalid command.")
 
